@@ -120,7 +120,7 @@ async def lifespan(app: FastAPI):  # noqa: ARG001
     # Load the workflow module
     logger.info("Loading workflow module: %s", WORKFLOW_MODULE)
     print(f"Loading workflow module: {WORKFLOW_MODULE}")
-    importlib.import_module(WORKFLOW_MODULE)
+    importlib.import_module("/Users/aks/file_search_app/workflows/workflow_recreation.py")
     logger.info("Workflow module %s loaded successfully", WORKFLOW_MODULE)
     yield
 

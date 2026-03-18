@@ -5,12 +5,14 @@ import json
 import logging
 import os
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI
 from griptape_nodes.bootstrap.workflow_executors.local_workflow_executor import LocalWorkflowExecutor
 from griptape_nodes.drivers.storage.storage_backend import StorageBackend
 from griptape_nodes.retained_mode.events.flow_events import GetTopLevelFlowRequest, GetTopLevelFlowResultSuccess
+from griptape_nodes.retained_mode.events.library_events import RegisterLibraryFromFileRequest
 from griptape_nodes.retained_mode.griptape_nodes import GriptapeNodes
 from pydantic import BaseModel
 
@@ -73,9 +75,47 @@ def _get_executor() -> LocalWorkflowExecutor:
     return _executor
 
 
+def _register_local_libraries() -> None:
+    """Register the project's local libraries with Griptape Nodes."""
+    project_root = Path(__file__).parent
+
+    # Define the libraries to register
+    libraries_to_register = [
+        project_root / "griptape_nodes_library" / "griptape_nodes_library.json",
+        project_root / "griptape-nodes-library-neo4j" / "neo4j_nodes_library" / "griptape_nodes_library.json",
+    ]
+
+    for library_path in libraries_to_register:
+        if library_path.exists():
+            try:
+                logger.info("Registering library: %s", library_path)
+                result = GriptapeNodes.handle_request(
+                    RegisterLibraryFromFileRequest(file_path=str(library_path.absolute()))
+                )
+
+                if hasattr(result, "was_successful") and result.was_successful:
+                    logger.info("Successfully registered library: %s", library_path.name)
+                else:
+                    logger.warning(
+                        "Failed to register library %s: %s",
+                        library_path,
+                        getattr(result, "result_details", "Unknown error"),
+                    )
+
+            except Exception:
+                logger.exception("Error registering library: %s", library_path)
+        else:
+            logger.warning("Library not found: %s", library_path)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):  # noqa: ARG001
     """Lifespan context manager for FastAPI startup/shutdown."""
+    # Register local libraries before loading the workflow
+    logger.info("Registering local libraries...")
+    _register_local_libraries()
+
+    # Load the workflow module
     logger.info("Loading workflow module: %s", WORKFLOW_MODULE)
     print(f"Loading workflow module: {WORKFLOW_MODULE}")
     importlib.import_module(WORKFLOW_MODULE)

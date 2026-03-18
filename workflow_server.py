@@ -4,6 +4,7 @@ import importlib
 import json
 import logging
 import os
+import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
@@ -22,6 +23,7 @@ logger = logging.getLogger(__name__)
 
 # Get workflow module from environment variable
 WORKFLOW_MODULE = f"workflows.{os.environ.get('WORKFLOW_MODULE', 'poem_flow')}"
+sys.path.append(os.path.dirname(__file__))  # add current file's folder
 
 # Global executor instance
 _executor: LocalWorkflowExecutor | None = None

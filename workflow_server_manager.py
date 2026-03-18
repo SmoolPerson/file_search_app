@@ -64,6 +64,8 @@ class WorkflowServerManager:
         env = os.environ.copy()
         env["WORKFLOW_MODULE"] = config.module
         env["GTN_CONFIG_ENABLE_WORKSPACE_FILE_WATCHING"] = "false"
+        app_dir = os.path.dirname(os.path.abspath(__file__))
+        env["PYTHONPATH"] = app_dir + os.pathsep + env.get("PYTHONPATH", "")
 
         # Don't pipe stdout/stderr so server logs appear in console
         process = subprocess.Popen(  # noqa: S603

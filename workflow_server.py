@@ -1,6 +1,7 @@
 """FastAPI server for executing Griptape Nodes workflows."""
 
 import importlib
+import importlib.util
 import json
 import logging
 import os
@@ -23,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 # Get workflow module from environment variable
 WORKFLOW_MODULE = f"workflows.{os.environ.get('WORKFLOW_MODULE', 'poem_flow')}"
-sys.path.append(os.path.dirname(__file__))  # add current file's folder
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # add current file's folder
 
 # Global executor instance
 _executor: LocalWorkflowExecutor | None = None
@@ -117,11 +118,18 @@ async def lifespan(app: FastAPI):  # noqa: ARG001
     logger.info("Registering local libraries...")
     _register_local_libraries()
 
-    # Load the workflow module
-    logger.info("Loading workflow module: %s", WORKFLOW_MODULE)
-    print(f"Loading workflow module: {WORKFLOW_MODULE}")
-    importlib.import_module("/Users/aks/file_search_app/workflows/workflow_recreation.py")
-    logger.info("Workflow module %s loaded successfully", WORKFLOW_MODULE)
+    # Load the workflow module directly by file path to avoid sys.path issues
+    workflow_name = os.environ.get("WORKFLOW_MODULE", "poem_flow")
+    workflow_file = Path(__file__).parent / "workflows" / f"{workflow_name}.py"
+    logger.info("Loading workflow file: %s (exists=%s)", workflow_file, workflow_file.exists())
+    logger.info("sys.path: %s", sys.path)
+    spec = importlib.util.spec_from_file_location(workflow_name, workflow_file)
+    if spec is None or spec.loader is None:
+        msg = f"Could not load spec for workflow file: {workflow_file}"
+        raise RuntimeError(msg)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    logger.info("Workflow module %s loaded successfully", workflow_name)
     yield
 
 

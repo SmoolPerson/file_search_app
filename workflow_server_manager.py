@@ -79,6 +79,7 @@ class WorkflowServerManager:
                 str(config.port),
             ],
             env=env,
+            cwd=app_dir,
         )
 
         self.processes[config.module] = process

@@ -4,9 +4,12 @@ set -e
 cd "$(dirname "$0")"
 
 NEO4J_USER="neo4j"
-NEO4J_INITIAL_PASSWORD="neo4j"
 NEO4J_PASSWORD="password"
 NEO4J_DATABASE="filedb"
+
+# Set initial password before first start (avoids interactive prompt)
+# This is a no-op if Neo4j has already been started before
+neo4j-admin dbms set-initial-password "$NEO4J_PASSWORD" 2>/dev/null || true
 
 # Start Neo4j if not already running
 if ! brew services list | grep -q "neo4j.*started"; then
@@ -21,11 +24,6 @@ until curl -s http://localhost:7474 > /dev/null 2>&1; do
 done
 echo "Neo4j is up."
 
-# Change default password (only needed on first run — safe to ignore if already changed)
-echo "Setting password..."
-cypher-shell -u "$NEO4J_USER" -p "$NEO4J_INITIAL_PASSWORD" \
-    "ALTER CURRENT USER SET PASSWORD FROM '$NEO4J_INITIAL_PASSWORD' TO '$NEO4J_PASSWORD';" \
-    2>/dev/null && echo "Password set." || echo "Password already changed, skipping."
 
 # Create the filedb database (requires Neo4j 5+ — skipped silently on Community if unsupported)
 echo "Creating '$NEO4J_DATABASE' database..."

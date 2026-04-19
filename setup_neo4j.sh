@@ -5,7 +5,7 @@ cd "$(dirname "$0")"
 
 NEO4J_USER="neo4j"
 NEO4J_PASSWORD="password"
-NEO4J_DATABASE="filedb"
+NEO4J_DATABASE="neo4j"
 
 # Stop Neo4j so we can safely reset auth
 echo "Stopping Neo4j..."
@@ -35,13 +35,6 @@ done
 echo "Neo4j is up."
 
 
-# Create the filedb database (requires Neo4j 5+ — skipped silently on Community if unsupported)
-echo "Creating '$NEO4J_DATABASE' database..."
-cypher-shell -u "$NEO4J_USER" -p "$NEO4J_PASSWORD" \
-    -d system \
-    "CREATE DATABASE $NEO4J_DATABASE IF NOT EXISTS;" \
-    2>/dev/null && echo "Database '$NEO4J_DATABASE' ready." \
-    || echo "Could not create '$NEO4J_DATABASE' (Community Edition may not support multiple databases). Using default 'neo4j' database instead."
 
 echo ""
 echo "Neo4j setup complete. Add these to your environment before running start.sh:"

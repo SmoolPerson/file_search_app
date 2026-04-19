@@ -1,0 +1,215 @@
+"""Tests for WorkflowRegistry functionality."""
+
+import os
+import platform
+from pathlib import Path
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+from griptape_nodes.files.path_utils import derive_registry_key
+from griptape_nodes.node_library.workflow_registry import WorkflowRegistry
+from griptape_nodes.retained_mode.griptape_nodes import GriptapeNodes
+
+
+class TestDeriveRegistryKey:
+    def test_flat_workflow(self) -> None:
+        assert derive_registry_key("my_workflow.py") == "my_workflow"
+
+    def test_subdirectory(self) -> None:
+        assert derive_registry_key("subdir/my_workflow.py") == "subdir/my_workflow"
+
+    def test_nested_subdirectory(self) -> None:
+        assert derive_registry_key("a/b/c/my_workflow.py") == "a/b/c/my_workflow"
+
+    def test_backslash_normalization(self) -> None:
+        assert derive_registry_key("subdir\\my_workflow.py") == "subdir/my_workflow"
+
+    def test_no_extension(self) -> None:
+        assert derive_registry_key("my_workflow") == "my_workflow"
+
+    def test_dot_prefix_normalized(self) -> None:
+        assert derive_registry_key("./my_workflow.py") == "my_workflow"
+
+    @pytest.mark.parametrize(
+        ("input_path", "expected"),
+        [
+            ("my_workflow.py", "my_workflow"),
+            ("subdir/my_workflow.py", "subdir/my_workflow"),
+            ("a/b/deep_workflow.py", "a/b/deep_workflow"),
+            ("windows\\path\\workflow.py", "windows/path/workflow"),
+        ],
+    )
+    def test_known_inputs(self, input_path: str, expected: str) -> None:
+        assert derive_registry_key(input_path) == expected
+
+
+class TestWorkflowRegistry:
+    """Test suite for WorkflowRegistry functionality."""
+
+    def test_get_complete_file_path_with_absolute_path(self) -> None:
+        """Test that get_complete_file_path returns absolute paths as-is."""
+        # Use a platform-appropriate absolute path
+        if os.name == "nt":  # Windows
+            absolute_path = "C:\\absolute\\path\\to\\workflow.py"
+        else:  # Unix-like
+            absolute_path = "/absolute/path/to/workflow.py"
+
+        result = WorkflowRegistry.get_complete_file_path(absolute_path)
+
+        # On Windows, paths starting with / are not considered absolute
+        # so they get treated as relative paths
+        if os.name == "nt" and absolute_path.startswith("/"):
+            # On Windows, Unix-style paths are relative
+            assert Path(result).is_absolute()
+        else:
+            assert result == absolute_path
+
+    def test_get_complete_file_path_with_unix_style_on_windows(self) -> None:
+        """Test Unix-style paths on Windows (treated as relative)."""
+        unix_style_path = "/absolute/path/to/workflow.py"
+        result = WorkflowRegistry.get_complete_file_path(unix_style_path)
+
+        if os.name == "nt":  # Windows
+            # Unix-style paths are treated as relative on Windows
+            # The result should be the workspace path + the Unix path
+            assert result.endswith("\\absolute\\path\\to\\workflow.py")
+            # Verify it's been made absolute
+            assert Path(result).is_absolute()
+        else:
+            # On Unix, this is an absolute path
+            assert result == unix_style_path
+
+    def test_get_complete_file_path_with_absolute_windows_path(self) -> None:
+        """Test that get_complete_file_path handles Windows absolute paths."""
+        windows_path = "C:\\Users\\test\\workflow.py"
+
+        result = WorkflowRegistry.get_complete_file_path(windows_path)
+
+        # On Windows, it should be returned as-is
+        # On Unix systems, Path.is_absolute() returns False for Windows paths,
+        # so it will be treated as relative
+        if platform.system() == "Windows":
+            assert result == windows_path
+        else:
+            # On Unix, Windows paths are treated as relative
+            assert result.endswith("C:\\Users\\test\\workflow.py")
+
+    def test_get_complete_file_path_with_relative_path(self, griptape_nodes: GriptapeNodes) -> None:
+        """Test that get_complete_file_path resolves relative paths to workspace."""
+        relative_path = "workflows/my_workflow.py"
+
+        # Get the actual workspace path from the config manager
+        workspace_path = griptape_nodes.ConfigManager().workspace_path
+
+        result = WorkflowRegistry.get_complete_file_path(relative_path)
+
+        expected = str(workspace_path / relative_path)
+        assert result == expected
+
+    def test_get_complete_file_path_with_home_expansion(self) -> None:
+        """Test that get_complete_file_path handles paths with home directory expansion."""
+        home_path = "~/workflows/my_workflow.py"
+
+        # Home paths starting with ~ are NOT considered absolute by Path.is_absolute()
+        # so they will be treated as relative paths
+        result = WorkflowRegistry.get_complete_file_path(home_path)
+
+        # Should be treated as relative and appended to workspace
+        if os.name == "nt":  # Windows
+            # On Windows, ~ is just a regular character in the path
+            assert result.endswith("~\\workflows\\my_workflow.py")
+        else:
+            # On Unix, ~ is also treated as relative (not expanded)
+            assert result.endswith("~/workflows/my_workflow.py")
+
+    def test_get_complete_file_path_with_current_dir_relative(self, griptape_nodes: GriptapeNodes) -> None:
+        """Test that get_complete_file_path handles current directory relative paths."""
+        current_dir_path = "./my_workflow.py"
+
+        # Get the actual workspace path from the config manager
+        workspace_path = griptape_nodes.ConfigManager().workspace_path
+
+        result = WorkflowRegistry.get_complete_file_path(current_dir_path)
+
+        expected = str(workspace_path / current_dir_path)
+        assert result == expected
+
+    def test_get_complete_file_path_with_parent_dir_relative(self, griptape_nodes: GriptapeNodes) -> None:
+        """Test that get_complete_file_path handles parent directory relative paths."""
+        parent_dir_path = "../external/my_workflow.py"
+
+        # Get the actual workspace path from the config manager
+        workspace_path = griptape_nodes.ConfigManager().workspace_path
+
+        result = WorkflowRegistry.get_complete_file_path(parent_dir_path)
+
+        # resolve_workspace_path normalizes the path by resolving .. components
+        expected = str((workspace_path / parent_dir_path).resolve())
+        assert result == expected
+
+
+class TestWorkflowRegistryOperations:
+    """Tests for WorkflowRegistry CRUD operations."""
+
+    def test_rekey_workflow_updates_registry_key(self) -> None:
+        mock_workflow = MagicMock()
+        with patch.dict(WorkflowRegistry._workflows, {"old_key": mock_workflow}, clear=True):
+            WorkflowRegistry.rekey_workflow("old_key", "new_key")
+
+            assert "new_key" in WorkflowRegistry._workflows
+            assert "old_key" not in WorkflowRegistry._workflows
+            assert WorkflowRegistry._workflows["new_key"] is mock_workflow
+
+    def test_rekey_workflow_missing_key_raises(self) -> None:
+        with patch.dict(WorkflowRegistry._workflows, {}, clear=True), pytest.raises(KeyError, match="not_there"):
+            WorkflowRegistry.rekey_workflow("not_there", "new_key")
+
+    def test_generate_new_workflow_uses_file_path_as_key(self) -> None:
+        mock_metadata = MagicMock()
+        with (
+            patch.dict(WorkflowRegistry._workflows, {}, clear=True),
+            patch.object(WorkflowRegistry, "get_complete_file_path", return_value="/workspace/my_workflow.py"),
+            patch.object(Path, "is_file", return_value=True),
+        ):
+            workflow = WorkflowRegistry.generate_new_workflow("my_workflow.py", mock_metadata)
+
+            assert "my_workflow" in WorkflowRegistry._workflows
+            assert WorkflowRegistry._workflows["my_workflow"] is workflow
+
+    def test_generate_new_workflow_preserves_subdirectory_in_key(self) -> None:
+        mock_metadata = MagicMock()
+        with (
+            patch.dict(WorkflowRegistry._workflows, {}, clear=True),
+            patch.object(WorkflowRegistry, "get_complete_file_path", return_value="/workspace/subdir/my_workflow.py"),
+            patch.object(Path, "is_file", return_value=True),
+        ):
+            WorkflowRegistry.generate_new_workflow("subdir/my_workflow.py", mock_metadata)
+
+            assert "subdir/my_workflow" in WorkflowRegistry._workflows
+            assert "my_workflow" not in WorkflowRegistry._workflows
+
+    def test_generate_new_workflow_same_filename_different_dirs_no_collision(self) -> None:
+        mock_metadata = MagicMock()
+        with (
+            patch.dict(WorkflowRegistry._workflows, {}, clear=True),
+            patch.object(WorkflowRegistry, "get_complete_file_path", return_value="/workspace/some/path.py"),
+            patch.object(Path, "is_file", return_value=True),
+        ):
+            WorkflowRegistry.generate_new_workflow("subdir_a/my_workflow.py", mock_metadata)
+            WorkflowRegistry.generate_new_workflow("subdir_b/my_workflow.py", mock_metadata)
+
+            assert "subdir_a/my_workflow" in WorkflowRegistry._workflows
+            assert "subdir_b/my_workflow" in WorkflowRegistry._workflows
+
+    def test_generate_new_workflow_duplicate_key_raises(self) -> None:
+        mock_metadata = MagicMock()
+        with (
+            patch.dict(WorkflowRegistry._workflows, {}, clear=True),
+            patch.object(WorkflowRegistry, "get_complete_file_path", return_value="/workspace/my_workflow.py"),
+            patch.object(Path, "is_file", return_value=True),
+        ):
+            WorkflowRegistry.generate_new_workflow("my_workflow.py", mock_metadata)
+
+            with pytest.raises(KeyError, match="my_workflow"):
+                WorkflowRegistry.generate_new_workflow("my_workflow.py", mock_metadata)

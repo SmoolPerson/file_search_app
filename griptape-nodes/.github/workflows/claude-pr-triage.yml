@@ -1,0 +1,42 @@
+name: Claude PR Triage
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+jobs:
+  triage-pr:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: write
+      id-token: write
+
+    steps:
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR_NUMBER: ${{ github.event.pull_request.number }}
+
+            Analyze this pull request and apply appropriate labels.
+
+            Steps:
+            1. Get PR details: `gh pr view [number] --json title,body,files`
+            2. Get changed files: `gh pr diff [number] --name-only`
+            3. List available labels: `gh label list`
+            4. Analyze the PR and select appropriate labels based on:
+               - Type of changes:
+                 * "enhancement" - new features or functionality
+                 * "bug" - fixes to existing functionality
+                 * "documentation" - doc updates
+                 * "refactor" - code restructuring
+                 * "performance" - performance improvements
+                 * "ci" - workflow/CI changes
+               - Technical areas affected (nodes, engine, config, etc.)
+            5. Apply labels: `gh pr edit [number] --add-label "label1,label2"`
+
+            DO NOT post any comments to the PR.
+          claude_args: |
+            --allowedTools "Bash(gh pr:*),Bash(gh label:*),Bash(gh search:*)"

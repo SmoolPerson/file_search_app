@@ -7,15 +7,25 @@ NEO4J_USER="neo4j"
 NEO4J_PASSWORD="password"
 NEO4J_DATABASE="filedb"
 
-# Set initial password before first start (avoids interactive prompt)
-# This is a no-op if Neo4j has already been started before
-neo4j-admin dbms set-initial-password "$NEO4J_PASSWORD" 2>/dev/null || true
+# Stop Neo4j so we can safely reset auth
+echo "Stopping Neo4j..."
+brew services stop neo4j 2>/dev/null || true
+sleep 3
 
-# Start Neo4j if not already running
-if ! brew services list | grep -q "neo4j.*started"; then
-    echo "Starting Neo4j..."
-    brew services start neo4j
+# Wipe the auth store so set-initial-password takes effect
+NEO4J_AUTH_FILE="$(brew --prefix)/var/neo4j/data/dbms/auth"
+if [ -f "$NEO4J_AUTH_FILE" ]; then
+    rm -f "$NEO4J_AUTH_FILE"
+    echo "Auth store cleared."
 fi
+
+# Set the password before starting
+neo4j-admin dbms set-initial-password "$NEO4J_PASSWORD"
+echo "Password set to '$NEO4J_PASSWORD'."
+
+# Start Neo4j
+echo "Starting Neo4j..."
+brew services start neo4j
 
 # Wait for Neo4j HTTP interface to be ready
 echo "Waiting for Neo4j to be ready..."

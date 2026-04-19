@@ -14,7 +14,7 @@ from fastapi import FastAPI
 from griptape_nodes.bootstrap.workflow_executors.local_workflow_executor import LocalWorkflowExecutor
 from griptape_nodes.drivers.storage.storage_backend import StorageBackend
 from griptape_nodes.retained_mode.events.flow_events import GetTopLevelFlowRequest, GetTopLevelFlowResultSuccess
-from griptape_nodes.retained_mode.events.library_events import RegisterLibraryFromFileRequest
+from griptape_nodes.retained_mode.events.library_events import RegisterLibraryFromFileRequest, UnloadLibraryFromRegistryRequest
 from griptape_nodes.retained_mode.griptape_nodes import GriptapeNodes
 from pydantic import BaseModel
 
@@ -82,9 +82,12 @@ def _register_local_libraries() -> None:
     """Register the project's local libraries with Griptape Nodes."""
     project_root = Path(__file__).parent
 
+    # Unload the bundled standard library so the custom local version can replace it
+    GriptapeNodes.handle_request(UnloadLibraryFromRegistryRequest(library_name="Griptape Nodes Library"))
+
     # Define the libraries to register
     libraries_to_register = [
-        project_root / "griptape_nodes_library" / "griptape_nodes_library.json",
+        project_root / "griptape-nodes-library-standard" / "griptape_nodes_library.json",
         project_root / "griptape-nodes-library-neo4j" / "neo4j_nodes_library" / "griptape_nodes_library.json",
     ]
 

@@ -1,18 +1,24 @@
+[tool.setuptools]
+packages = []
+
 [project]
-name = "griptape-nodes-turn-based-multi-character-example"
+name = "griptape-nodes-ai-graph-search"
 version = "0.1.0"
-description = "A Streamlit app for executing Griptape Nodes workflows"
+description = "A Streamlit app for AI Graph Search."
 authors = [
-    { name = "Griptape", email = "team@griptape.ai" }
+    { name = "Griptape", email = "team@griptape.ai" },
+    { name = "SmoolPerson", email = "noemail4privacy@gmail.com" }
 ]
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "streamlit>=1.41.0",
-    "python-dotenv>=1.0.0",
-    "griptape-nodes @ git+https://github.com/griptape-ai/griptape-nodes.git@main",
-    "fastapi[standard]>=0.115.0",
-    "httpx>=0.28.0",
+    "griptape-nodes",
+    "fastapi[standard]>=0.115.12",
+    "httpx>=0.28.0,<1.0.0",
+    "cattrs>=26.1.0",
+    "griptape>=1.9.4",
+    "pydantic>=2.12.5",
 ]
 
 [dependency-groups]
@@ -37,24 +43,24 @@ target-version = "py312"
 [tool.ruff.lint]
 select = ["ALL"]
 ignore = [
-    "TD002",   # Missing author in TODO
-    "FIX002",  # Line contains TODO
-    "D101",    # Missing docstring in public class
-    "D102",    # Missing docstring in public method
-    "D107",    # Missing docstring in __init__
-    "D105",    # Missing docstring in magic method
-    "ANN002",  # Missing type annotation for *args
-    "ANN003",  # Missing type annotation for **kwargs
-    "ANN401",  # Dynamically typed expressions (Any) are disallowed
-    "COM812",  # Trailing comma missing (conflicts with formatter)
-    "E501",    # Line too long (TODO: fix these)
-    "BLE001",  # Do not catch blind exception: Exception (TODO: fix these)
+    "TD002",
+    "FIX002",
+    "D101",
+    "D102",
+    "D107",
+    "D105",
+    "ANN002",
+    "ANN003",
+    "ANN401",
+    "COM812",
+    "E501",
+    "BLE001",
 ]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = [
-    "S101",    # Use of assert detected
-    "D104",    # Missing docstring in public package
+    "S101",
+    "D104",
 ]
 
 [tool.ruff.lint.pydocstyle]
@@ -63,10 +69,11 @@ convention = "google"
 [tool.ruff.lint.flake8-annotations]
 mypy-init-return = true
 
-[tool.typos]
+[tool.uv.sources]
+griptape-nodes = { path = "./griptape-nodes", editable = true }
 
+[tool.typos]
 [tool.typos.default.extend-words]
-# Add custom words here if needed
 
 [tool.typos.files]
 extend-exclude = []

@@ -24,8 +24,8 @@ class WorkflowConfig:
 
 # Hardcoded list of workflows - add more here as needed
 WORKFLOW_CONFIGS = [
-    WorkflowConfig(name="retrieval", module="retrieval_v2", port=8005),
-    WorkflowConfig(name="create", module="workflow_recreation", port=8006)
+    WorkflowConfig(name="retrieve_from_graph", module="retrieve_from_graph", port=8005),
+    WorkflowConfig(name="create_graph", module="create_graph", port=8006),
 ]
 
 
@@ -65,7 +65,8 @@ class WorkflowServerManager:
         env["WORKFLOW_MODULE"] = config.module
         env["GTN_CONFIG_ENABLE_WORKSPACE_FILE_WATCHING"] = "false"
         app_dir = os.path.dirname(os.path.abspath(__file__))
-        env["PYTHONPATH"] = app_dir + os.pathsep + env.get("PYTHONPATH", "")
+        griptape_nodes_src = os.path.join(app_dir, "griptape-nodes", "src")
+        env["PYTHONPATH"] = griptape_nodes_src + os.pathsep + app_dir + os.pathsep + env.get("PYTHONPATH", "")
 
         # Don't pipe stdout/stderr so server logs appear in console
         process = subprocess.Popen(  # noqa: S603

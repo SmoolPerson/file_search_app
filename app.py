@@ -27,9 +27,11 @@ def main():
         dir_path = st.text_input("Directory Path", "/path/to/directory")
         if st.button("Index Directory"):
             st.write(f"Indexing directory: {dir_path}")
-            # Placeholder for indexing logic
-            output = asyncio.run(execute_workflow_async(dir_path, "workflow_recreation"))
-            st.write(f"Indexing complete!")
+            output = asyncio.run(execute_workflow_async({"Start Flow": {"str": dir_path}}, "create_graph"))
+            if output.get("was_successful"):
+                st.success("Indexing complete!")
+            else:
+                st.error(f"Indexing failed: {output.get('result_details', 'Unknown error')}")
     with tab3:
         st.header("Search")
         st.write("Select the indexed directory you would like to search from the dropdown below!")
@@ -41,10 +43,12 @@ def main():
         query = st.text_input("Search query", "Find all files with cats?")
         if st.button("Search"):
             st.write(f"Searching in directory: {option}")
-            # Placeholder for search logic
-            output = asyncio.run(execute_workflow_async(query, "retrieval_v2"))
-            st.write("Search complete! Displaying results...")
-            st.write(output["agent_result"])
+            output = asyncio.run(execute_workflow_async({"Start Flow": {"text": query}}, "retrieve_from_graph"))
+            if output.get("was_successful"):
+                st.write("Search complete! Displaying results...")
+                st.write(output.get("agent_result", ""))
+            else:
+                st.error(f"Search failed: {output.get('result_details', 'Unknown error')}")
 
 @st.cache_resource
 def get_server_manager() -> WorkflowServerManager:
@@ -71,23 +75,8 @@ async def call_workflow_server(port: int, flow_input: dict) -> dict:
         result = response.json()
         return result.get("output", {})
 
-async def execute_workflow_async(  # noqa: PLR0913
-    query: str, workflow_name: str
-) -> dict:
-    """Execute the Griptape Nodes workflow via HTTP.
-
-    Args:
-        sample_input: The sample input string to process
-
-    Returns:
-        str: Contains workflow output, which is the same input string but with 's' appended to it. 
-    """
-    flow_input = {
-        "Start Flow": {
-            "text": query,
-        }
-    }
-
+async def execute_workflow_async(flow_input: dict, workflow_name: str) -> dict:
+    """Execute a Griptape Nodes workflow via HTTP."""
     manager = get_server_manager()
     port = manager.get_port(workflow_name)
 
@@ -113,6 +102,7 @@ async def execute_workflow_async(  # noqa: PLR0913
         return {
             "was_successful": end_flow_data.get("was_successful", False),
             "agent_result": end_flow_data.get("text", ""),
+            "result_details": end_flow_data.get("result_details", ""),
         }
     except httpx.RequestError as e:
         return {
